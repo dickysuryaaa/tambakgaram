@@ -1,0 +1,1 @@
+@include('errors.pesan', ['kode' => '404', 'ikon' => 'bi-signpost-split', 'nada' => '', 'judul' => 'Halaman tidak ditemukan', 'pesan' => 'Halaman yang Anda cari tidak ada, atau bukan milik Anda. Tenang, data Anda tetap aman.'])

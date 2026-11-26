@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: simtag
+  labels:
+    app: simtag
+spec:
+  type: NodePort
+  selector:
+    app: simtag
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 30080

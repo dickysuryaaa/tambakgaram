@@ -1,0 +1,1 @@
+@include('errors.pesan', ['kode' => '500', 'ikon' => 'bi-tools', 'nada' => 'bad', 'judul' => 'Terjadi masalah', 'pesan' => 'Maaf, ada gangguan pada aplikasi. Data Anda tetap aman. Coba lagi sebentar lagi.'])

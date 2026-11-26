@@ -1,0 +1,1 @@
+@include('errors.pesan', ['kode' => '419', 'ikon' => 'bi-clock-history', 'nada' => 'warn', 'judul' => 'Halaman kedaluwarsa', 'pesan' => 'Halaman sudah terlalu lama terbuka. Muat ulang halaman lalu coba lagi.'])

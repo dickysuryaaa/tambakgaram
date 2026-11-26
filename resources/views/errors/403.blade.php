@@ -1,0 +1,1 @@
+@include('errors.pesan', ['kode' => '403', 'ikon' => 'bi-shield-lock', 'nada' => 'warn', 'judul' => 'Akses ditolak', 'pesan' => 'Anda tidak punya izin untuk membuka halaman ini. Jika merasa ini keliru, hubungi koordinator kelompok.'])
