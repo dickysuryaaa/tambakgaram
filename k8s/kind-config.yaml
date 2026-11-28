@@ -1,14 +1,49 @@
-# Cluster uji lokal: 1 control plane + 2 worker (PRD 12.1).
-# NodePort 30080 dipublikasikan lewat control plane, yang tidak pernah dimatikan,
-# sehingga load generator tetap bisa menembak walau salah satu worker dihentikan.
+# Cluster uji lokal: 1 control plane + 2 worker node (PRD 12.1).
+#
+# NodePort 30080 dipublikasikan lewat control plane, yang TIDAK pernah
+# dimatikan pada skenario 3, sehingga load generator (k6/hey) di laptop host
+# tetap bisa menembak http://localhost:30080 walau salah satu worker dihentikan.
+# Catatan: hostPort 30080 hanya boleh dipetakan di SATU node (port host unik),
+# karena itu tidak dipasang juga di worker.
+#
+# Nama kontainer Docker yang dibuat Kind (untuk `docker stop` skenario 3):
+#   simtag-cluster-control-plane, simtag-cluster-worker, simtag-cluster-worker2
+# Ingin nama worker-1/worker-2? Ganti nama kontainer setelah cluster dibuat:
+#   docker rename simtag-cluster-worker  simtag-worker-1
+#   docker rename simtag-cluster-worker2 simtag-worker-2
+#
+# MySQL eksternal di host laptop: dari dalam node Kind (kontainer Docker),
+# host laptop dapat dijangkau lewat `host.docker.internal` (Docker Desktop
+# Windows/macOS). Set DB_HOST=host.docker.internal di configmap-secret.yaml.
+# Pastikan MySQL host menerima koneksi dari antarmuka Docker (bind-address
+# bukan hanya 127.0.0.1) dan user MySQL diizinkan dari subnet kontainer.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: simtag
+name: simtag-cluster
 nodes:
   - role: control-plane
     extraPortMappings:
+      # NodePort Service simtag -> http://localhost:30080 di host laptop.
       - containerPort: 30080
         hostPort: 30080
         protocol: TCP
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "simtag/role=control-plane"
   - role: worker
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "simtag/role=worker"
   - role: worker
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "simtag/role=worker"

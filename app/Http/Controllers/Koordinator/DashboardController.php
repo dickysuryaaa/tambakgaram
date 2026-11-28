@@ -37,13 +37,13 @@ class DashboardController extends Controller
 
         // 5. Kendala belum selesai: paling mendesak dulu, lalu yang paling lama menunggu
         $openIssues = Issue::with('pond')->whereIn('status', ['terbuka', 'diproses'])
-            ->orderByRaw("FIELD(priority, 'tinggi', 'sedang', 'rendah')")->orderBy('reported_at')
+            ->orderByRaw(Stats::orderBy('priority', ['tinggi', 'sedang', 'rendah']))->orderBy('reported_at')
             ->limit(5)->get();
         $openIssueTotal = Issue::whereIn('status', ['terbuka', 'diproses'])->count();
 
         // 6. Grafik produksi per bulan
         $perMonth = $harvests()
-            ->selectRaw("DATE_FORMAT(harvest_date, '%Y-%m') AS ym, SUM(".Stats::HARVEST_KG.') AS kg')
+            ->selectRaw(Stats::yearMonth('harvest_date').' AS ym, SUM('.Stats::HARVEST_KG.') AS kg')
             ->groupBy('ym')->pluck('kg', 'ym');
         $chart = collect($period->months())->map(fn (string $ym) => [
             'label' => Carbon::createFromFormat('Y-m-d', $ym.'-01')->translatedFormat('M Y'),

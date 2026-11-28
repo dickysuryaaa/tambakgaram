@@ -7,6 +7,7 @@ use App\Models\Harvest;
 use App\Models\Member;
 use App\Models\Pond;
 use App\Support\Label;
+use App\Support\Stats;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -40,7 +41,7 @@ class PondController extends Controller
         $cycles = $pond->productionCycles()->withCount('activities')->orderByDesc('start_date')->get();
         $harvestKg = Harvest::where('pond_id', $pond->pond_id)->get()->sum->quantity_kg;
         $latestObs = $pond->waterObservations()->latest('observed_at')->first();
-        $issues = $pond->issues()->orderByRaw("FIELD(status, 'terbuka', 'diproses', 'selesai')")->latest('reported_at')->limit(10)->get();
+        $issues = $pond->issues()->orderByRaw(Stats::orderBy('status', ['terbuka', 'diproses', 'selesai']))->latest('reported_at')->limit(10)->get();
 
         return view('koordinator.tambak.show', compact('pond', 'cycles', 'harvestKg', 'latestObs', 'issues'));
     }

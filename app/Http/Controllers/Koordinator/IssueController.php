@@ -8,6 +8,7 @@ use App\Models\Member;
 use App\Models\Pond;
 use App\Support\Label;
 use App\Support\Period;
+use App\Support\Stats;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -30,8 +31,8 @@ class IssueController extends Controller
             ->when(array_key_exists((string) $f['status'], Label::ISSUES), fn ($q) => $q->where('status', $f['status']))
             ->when(array_key_exists((string) $f['kategori'], Label::CATEGORIES), fn ($q) => $q->where('category', $f['kategori']));
         $issues = $period->whereDateTime($issues, 'reported_at')
-            ->orderByRaw("FIELD(status, 'terbuka', 'diproses', 'selesai')")
-            ->orderByRaw("FIELD(priority, 'tinggi', 'sedang', 'rendah')")
+            ->orderByRaw(Stats::orderBy('status', ['terbuka', 'diproses', 'selesai']))
+            ->orderByRaw(Stats::orderBy('priority', ['tinggi', 'sedang', 'rendah']))
             ->orderByDesc('reported_at')
             ->paginate(15)->withQueryString();
 

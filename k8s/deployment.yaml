@@ -36,10 +36,15 @@ spec:
 
       # Sebar merata antar worker node. Dengan 3 replika di 2 worker: 2 + 1.
       # maxSkew 1 + DoNotSchedule menjamin selisih maksimal 1 pod antar node.
+      # nodeTaintsPolicy: Honor WAJIB: tanpa itu, control-plane yang ter-taint
+      # tetap dihitung sebagai domain topologi (0 pod), sehingga sebaran
+      # 2-1-0 pun dianggap melanggar maxSkew dan pod ke-3 selamanya Pending.
+      # (ScheduleAnyway hanya jika ingin tetap jalan walau tidak bisa disebar.)
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app: simtag
@@ -57,8 +62,10 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: simtag
-          # Ganti dengan image hasil build/push Anda.
-          image: GANTI-REGISTRY/simtag:1.0.0
+          # Image hasil build lokal (kind load docker-image ...) atau pull registry.
+          # Build:  docker build -t dickysuryaaa/simtag:1.0.0 .
+          # Muat :  kind load docker-image dickysuryaaa/simtag:1.0.0 --name simtag-cluster
+          image: dickysuryaaa/simtag:1.0.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
