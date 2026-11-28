@@ -1,0 +1,139 @@
+name: ci-cd-cache
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: Strategi cache
+        type: choice
+        default: dep-and-layer-cache
+        options:
+          - no-cache
+          - dep-cache
+          - dep-and-layer-cache
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  STRATEGY: ${{ inputs.strategy || vars.CACHE_STRATEGY || 'dep-and-layer-cache' }}
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Tampilkan strategi
+        run: echo "Strategi cache = $STRATEGY"
+
+      - uses: actions/checkout@v4
+
+      - name: Nama image (huruf kecil)
+        id: meta
+        run: echo "image=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache dependensi Composer
+        if: ${{ env.STRATEGY != 'no-cache' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor
+            ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install dependensi
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Jalankan test
+        env:
+          APP_ENV: testing
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          SESSION_DRIVER: array
+          CACHE_STORE: array
+        run: php artisan test
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dan push (tanpa cache)
+        if: ${{ env.STRATEGY == 'no-cache' || env.STRATEGY == 'dep-cache' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          no-cache: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+
+      - name: Build dan push (cache layer)
+        if: ${{ env.STRATEGY == 'dep-and-layer-cache' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+
+  deployment:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tarik image
+        run: docker pull "${{ needs.build-and-test.outputs.image }}:${{ github.sha }}"
+
+      - name: Jalankan kontainer uji
+        run: |
+          docker run -d --name simtag-test -p 8080:80 \
+            -e APP_ENV=production -e APP_DEBUG=false \
+            -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+            -e DB_CONNECTION=mysql -e DB_HOST=127.0.0.1 -e DB_PORT=3306 \
+            -e DB_DATABASE=simtag_db -e DB_USERNAME=simtag -e DB_PASSWORD=simtag \
+            -e SESSION_DRIVER=database -e CACHE_STORE=database \
+            "${{ needs.build-and-test.outputs.image }}:${{ github.sha }}"
+
+      - name: Verifikasi health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:8080/health/live; then break; fi
+            sleep 1
+          done
+          curl -f -i http://localhost:8080/health/live
+
+      - name: Log kontainer jika gagal
+        if: failure()
+        run: docker logs simtag-test
+
+      - name: Hapus kontainer uji
+        if: always()
+        run: docker rm -f simtag-test
